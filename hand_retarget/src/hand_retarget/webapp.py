@@ -290,6 +290,14 @@ def create_app(config: Config) -> FastAPI:
     def css():
         return FileResponse(STATIC / "style.css", media_type="text/css")
 
+    @app.get("/i18n.js")
+    def translations():
+        return FileResponse(STATIC / "i18n.js", media_type="text/javascript")
+
+    @app.get("/aeonlabs-wordmark.png")
+    def wordmark():
+        return FileResponse(STATIC / "aeonlabs-wordmark.png", media_type="image/png")
+
     @app.get("/api/status")
     def status():
         errors = []

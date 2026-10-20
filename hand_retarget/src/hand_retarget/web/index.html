@@ -1,69 +1,73 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Robot Demonstration Studio · Aeon Labs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
+  <script src="/i18n.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
-<aside class="rail"><a class="brand" href="/">aeon<span>labs</span></a><div class="rail-label">ROBOTICS</div><div class="nav-active">◉ &nbsp; Demonstrations</div><div class="rail-foot">UR5e<br>Tesollo DG5F · Right</div></aside>
+<aside class="rail"><a class="brand" href="/" aria-label="Aeon Labs"><img src="/aeonlabs-wordmark.png" alt="Aeon Labs"></a><div class="rail-label" data-i18n="robotics">ROBOTICS</div><div class="nav-active"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M3 1.8v8.4L10 6z" fill="currentColor"/></svg></span><span data-i18n="demonstrations">Demo</span></div><div class="rail-foot">UR5e<br><span data-i18n="rightHand">Tesollo DG5F · Right</span></div></aside>
 <main>
-  <header><span class="eyebrow">ROBOT DEMONSTRATION STUDIO</span><button id="health" class="pill" type="button">● 正在检查服务</button></header>
+  <header><img class="wordmark" src="/aeonlabs-wordmark.png" alt="Aeon Labs"><div class="header-actions"><button id="language-toggle" class="pill language-toggle" type="button" aria-label="Switch to Chinese">中文</button><button id="health" class="pill" type="button" data-i18n="checking">● Checking services</button></div></header>
   <div id="health-detail" class="notice" hidden></div>
-  <div class="hero"><div><h1>From observation to action.</h1><p>上传机器人视角，描述任务，生成可导出的灵巧手动作轨迹。</p></div><div class="recipe">4 秒示范<span>60 Hz · 6 + 20 joints</span></div></div>
+  <div class="hero"><div><div class="eyebrow" data-i18n="studio">ROBOT DEMONSTRATION STUDIO</div><h1 data-i18n="headline">From observation to action.</h1><p data-i18n="intro">Upload a robot-view image, describe the task, and export a dexterous-hand trajectory.</p></div><div class="recipe"><div data-i18n="durationBadge">4-second demonstration</div><span data-i18n="jointsBadge">60 Hz · 6 + 20 joints</span></div></div>
   <div class="workspace">
     <section class="panel">
-      <div class="section-title"><span class="number">01</span><h2>初始观察与任务</h2></div>
+      <div class="section-title"><span class="number">01</span><h2 data-i18n="inputTitle">Initial observation &amp; task</h2></div>
       <form id="generate-form">
         <div id="dropzone" class="dropzone">
-          <div id="upload-prompt"><div class="upload-icon">↥</div><strong>拖入机器手的第一视角图片</strong><p>PNG、JPEG 或 WebP · 最大 16 MP</p></div>
-          <canvas id="input-preview" aria-label="输入图片；手动模式下可涂抹机械手区域" hidden></canvas>
+          <div id="upload-prompt"><div class="upload-icon">↥</div><strong data-i18n="dropImage">Drop a first-person robot-hand image</strong><p data-i18n="formats">PNG, JPEG or WebP · up to 16 MP</p></div>
+          <canvas id="input-preview" aria-label="Input image; paint the hand region in manual mode" data-i18n-aria-label="inputCanvas" hidden></canvas>
           <input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
         </div>
-        <div class="button-row"><button id="choose-image" type="button">上传图片</button><button id="open-camera" type="button">相机采集</button><span id="image-size" class="muted"></span></div>
-        <div id="camera-area" hidden><video id="camera" autoplay playsinline muted></video><div class="button-row"><button id="capture" type="button">拍摄这一帧</button><button id="close-camera" type="button">关闭相机</button></div></div>
-        <label for="instruction">任务指令</label>
-        <textarea id="instruction" rows="3" placeholder="例如：用右手抓住桌上的杯子，缓慢抬起。" required maxlength="4000"></textarea>
+        <div class="button-row"><button id="choose-image" type="button" data-i18n="upload">Upload image</button><button id="open-camera" type="button" data-i18n="camera">Use camera</button><span id="image-size" class="muted"></span></div>
+        <div id="camera-area" hidden><video id="camera" autoplay playsinline muted></video><div class="button-row"><button id="capture" type="button" data-i18n="capture">Capture frame</button><button id="close-camera" type="button" data-i18n="closeCamera">Close camera</button></div></div>
+        <label for="instruction" data-i18n="instruction">Task instruction</label>
+        <textarea id="instruction" rows="3" placeholder="Example: Grasp the cup with the right hand and slowly lift it." data-i18n-placeholder="instructionPlaceholder" required maxlength="4000"></textarea>
         <div class="row">
-          <div><label for="hfov">相机水平视场角（°）</label><input id="hfov" type="number" min="20" max="160" step="any" placeholder="填写相机参数" required></div>
-          <div><label for="pitch">固定相机俯角（°）</label><input id="pitch" type="number" min="-88.99" max="88.99" step="any" placeholder="填写测量值" required></div>
+          <div><label for="hfov" data-i18n="hfov">Camera horizontal FOV (°)</label><input id="hfov" type="number" min="20" max="160" step="any" placeholder="Enter camera FOV" data-i18n-placeholder="cameraPlaceholder" required></div>
+          <div><label for="pitch" data-i18n="pitch">Fixed camera pitch (°)</label><input id="pitch" type="number" min="-88.99" max="88.99" step="any" placeholder="Enter measured pitch" data-i18n-placeholder="pitchPlaceholder" required></div>
         </div>
-        <p class="hint">固定相机模式：拍摄与生成期间相机保持不动。参数会保存在本浏览器。</p>
-        <details><summary>编辑区域与标定选项</summary>
-          <label class="check"><input id="manual-mask" type="checkbox">手动指定换手区域（默认自动识别）</label>
-          <div id="mask-tools" hidden><p class="hint">在图片上涂抹机械手及预期人手轮廓，避开被抓物体。白色区域允许编辑。</p><div class="button-row"><label for="brush">笔刷</label><input id="brush" type="range" min="4" max="100" value="30"><button id="clear-mask" type="button">清除</button></div><label for="mask-file">或上传黑白 mask</label><input id="mask-file" type="file" accept="image/png"></div>
-          <label for="edited-file">已有的人手编辑图（可选，跳过图片编辑服务）</label><input id="edited-file" type="file" accept="image/png,image/jpeg,image/webp">
-          <label for="camera-transform">相机 → 示范坐标系变换（可选，JSON；替代固定俯角）</label><input id="camera-transform" type="file" accept=".json,application/json">
-          <label for="placement">示范 → 机器人世界坐标标定（可选，4×4 JSON）</label><input id="placement" type="file" accept=".json,application/json">
-          <p class="hint">未提供机器人标定时，轨迹对齐到仓库的初始手位，属于姿态回放实验。</p>
-          <label for="seed">随机种子</label><input id="seed" type="number" min="0" max="2147483647" value="0">
+        <p class="hint" data-i18n="cameraHint">Fixed-camera mode assumes a stationary camera during capture and generation. Settings are saved in this browser.</p>
+        <details><summary data-i18n="advanced">Edit region &amp; calibration</summary>
+          <label class="check"><input id="manual-mask" type="checkbox"><span data-i18n="manualMask">Specify the edit region manually (automatic by default)</span></label>
+          <div id="mask-tools" hidden><p class="hint" data-i18n="maskHint">Paint the robot hand and intended human-hand outline, avoiding held objects. White areas allow edits.</p><div class="button-row"><label for="brush" data-i18n="brush">Brush</label><input id="brush" type="range" min="4" max="100" value="30"><button id="clear-mask" type="button" data-i18n="clear">Clear</button></div><label for="mask-file" data-i18n="uploadMask">Or upload a black-and-white mask</label><input id="mask-file" type="file" accept="image/png" hidden><div class="file-picker"><button type="button" data-file-button="mask-file" data-i18n="chooseFile">Choose file</button><span class="muted" data-file-name="mask-file">No file selected</span></div></div>
+          <label for="edited-file" data-i18n="editedFile">Existing human-hand edit (optional; skips image editing)</label><input id="edited-file" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="file-picker"><button type="button" data-file-button="edited-file" data-i18n="chooseFile">Choose file</button><span class="muted" data-file-name="edited-file">No file selected</span></div>
+          <label for="camera-transform" data-i18n="cameraTransform">Camera → demonstration transform (optional JSON; replaces fixed pitch)</label><input id="camera-transform" type="file" accept=".json,application/json" hidden><div class="file-picker"><button type="button" data-file-button="camera-transform" data-i18n="chooseFile">Choose file</button><span class="muted" data-file-name="camera-transform">No file selected</span></div>
+          <label for="placement" data-i18n="placement">Demonstration → robot-world calibration (optional 4×4 JSON)</label><input id="placement" type="file" accept=".json,application/json" hidden><div class="file-picker"><button type="button" data-file-button="placement" data-i18n="chooseFile">Choose file</button><span class="muted" data-file-name="placement">No file selected</span></div>
+          <p class="hint" data-i18n="placementHint">Without robot calibration, the trajectory aligns to the repository&#x27;s initial hand pose for an experimental replay.</p>
+          <label for="seed" data-i18n="seed">Random seed</label><input id="seed" type="number" min="0" max="2147483647" value="0">
         </details>
         <div id="form-error" class="error" role="alert" hidden></div>
-        <button id="generate" class="primary full" type="submit">生成 4 秒动作轨迹 <span>→</span></button>
-        <p class="hint">后台自动完成换手、视频与动作生成、retarget。无需启动 Codex。</p>
+        <button id="generate" class="primary full" type="submit"><span data-i18n="generate">Generate 4-second trajectory</span><span class="arrow" aria-hidden="true">→</span></button>
+        <p class="hint" data-i18n="automaticHint">Hand editing, video and action generation, and retargeting run automatically. No Codex session required.</p>
       </form>
     </section>
     <section class="panel output">
-      <div class="section-title"><span class="number">02</span><h2>生成结果</h2><span id="job-status" class="status">等待输入</span></div>
-      <ol id="steps" class="steps"><li data-stage="mask">定位机械手</li><li data-stage="edit">换成人手</li><li data-stage="uplift">提取初始姿态</li><li data-stage="generate">生成示范</li><li data-stage="retarget">Retarget</li></ol>
-      <div id="empty-state" class="empty-state"><div class="trajectory-icon">⌁</div><h3>每段动作，从这一帧开始。</h3><p>这里会显示编辑后的人手、生成视频和机器人关节轨迹。</p></div>
+      <div class="section-title"><span class="number">02</span><h2 data-i18n="results">Generated results</h2><span id="job-status" class="status" data-i18n="waiting">Waiting for input</span></div>
+      <ol id="steps" class="steps"><li data-stage="mask" data-i18n="maskStage">Locate hands</li><li data-stage="edit" data-i18n="editStage">Edit hands</li><li data-stage="uplift" data-i18n="upliftStage">Estimate pose</li><li data-stage="generate" data-i18n="generateStage">Generate demo</li><li data-stage="retarget" data-i18n="retargetStage">Retarget</li></ol>
+      <div id="empty-state" class="empty-state"><div class="trajectory-icon" aria-hidden="true"><svg width="100" height="70" viewBox="0 0 100 70" fill="none" stroke="#ddd3b4" stroke-width="2"><path d="M8 56H92M12 58V10"/><path d="M12 48C28 48 25 20 42 20S59 46 74 35L90 18"/><circle cx="42" cy="20" r="4" fill="#f9f7f5"/><circle cx="74" cy="35" r="4" fill="#f9f7f5"/></svg></div><h3 data-i18n="emptyTitle">Every motion starts with one frame.</h3><p data-i18n="emptyHint">The edited hands, generated video and robot joint trajectories will appear here.</p></div>
       <div id="result" hidden>
-        <p id="import-notice" class="notice" hidden>已保存结果的回归展示：没有重新执行换手或 H3 视频生成。</p>
+        <p id="import-notice" class="notice" hidden data-i18n="importNotice">Saved regression result: hand editing and H3 video generation were not rerun.</p>
         <p id="job-instruction" class="job-prompt"></p>
-        <div class="previews"><figure><img id="source-image" alt="原始机器人视角"><figcaption>机器人初始观察</figcaption></figure><figure><img id="edited-image" alt="编辑后的人手视角" hidden><div id="edit-pending" class="placeholder">等待人手编辑</div><figcaption>人手初始条件</figcaption></figure></div>
-        <details id="mask-result" hidden><summary>查看实际编辑区域</summary><img id="mask-image" alt="白色为允许编辑区域"></details>
+        <div class="previews"><figure><img id="source-image" alt="Original robot view" data-i18n-alt="sourceAlt"><figcaption data-i18n="sourceCaption">Robot initial observation</figcaption></figure><figure><img id="edited-image" alt="Edited human-hand view" data-i18n-alt="editedAlt" hidden><div id="edit-pending" class="placeholder" data-i18n="editPending">Waiting for hand edit</div><figcaption data-i18n="editedCaption">Human-hand initial condition</figcaption></figure></div>
+        <details id="mask-result" hidden><summary data-i18n="viewMask">View actual edit region</summary><img id="mask-image" alt="White indicates the allowed edit region" data-i18n-alt="maskAlt"></details>
         <video id="output-video" controls playsinline hidden></video>
         <div id="job-error" class="error" role="alert" hidden></div>
         <div id="metrics" class="metrics"></div>
-        <div id="trajectory" hidden><div class="chart-header"><h3>关节角轨迹</h3><select id="joint-group" aria-label="选择关节组"><option value="arm">UR5e · 6 joints</option><option value="hand">DG5F · 20 joints</option></select></div><canvas id="chart" width="800" height="220" aria-label="关节角随时间的曲线"></canvas><p class="hint">横轴：秒 · 纵轴：弧度</p></div>
+        <div id="trajectory" hidden><div class="chart-header"><h3 data-i18n="jointTrajectory">Joint trajectories</h3><select id="joint-group" aria-label="Select a joint group" data-i18n-aria-label="jointGroup"><option value="arm" data-i18n="armOption">UR5e · 6 joints</option><option value="hand" data-i18n="handOption">DG5F · 20 joints</option></select></div><canvas id="chart" width="800" height="220" aria-label="Joint angle over time" data-i18n-aria-label="chartAlt"></canvas><p class="hint" data-i18n="chartHint">Horizontal: seconds · Vertical: radians</p></div>
         <div id="downloads" class="downloads"></div>
-        <p id="execution-note" class="hint" hidden>轨迹已导出，尚未在硬件执行。NPZ 可由仓库的 real_robot/replay_real.py 读取；JSON 包含现有控制器的路径和手部目标消息。</p>
+        <p id="execution-note" class="hint" hidden data-i18n="executionNote">Exported trajectory; not executed on hardware. The repository&#x27;s real_robot/replay_real.py reads the NPZ. JSON includes the existing controllers&#x27; arm paths and hand targets.</p>
       </div>
     </section>
   </div>
-  <section class="history"><div class="section-title"><h2>最近任务</h2><button id="refresh-history" type="button">刷新</button></div><div id="history-list" class="history-list"><p class="muted">还没有任务。</p></div></section>
-  <footer>H3 · HF15 mirrored / step 12983 <span>UR5e + Tesollo DG5F · right hand</span></footer>
+  <section class="history"><div class="section-title"><h2 data-i18n="recent">Recent jobs</h2><button id="refresh-history" type="button" data-i18n="refresh">Refresh</button></div><div id="history-list" class="history-list"><p class="muted" data-i18n="noJobs">No jobs yet.</p></div></section>
+  <footer>H3 · HF15 mirrored / step 12983 <span data-i18n="robotFooter">UR5e + Tesollo DG5F · right hand</span></footer>
 </main>
 </body>
 </html>

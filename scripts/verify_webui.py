@@ -28,12 +28,17 @@ def main():
         errors = []
         page.on("pageerror", lambda err: errors.append(str(err)))
         page.goto(args.url)
+        assert page.locator("html").get_attribute("lang") == "en"
+        assert page.locator("#choose-image").inner_text() == "Upload image"
+        page.wait_for_function("Array.from(document.querySelectorAll('img[src=\"/aeonlabs-wordmark.png\"]')).every(i => i.complete && i.naturalWidth > 0)")
+        assert page.locator('img[src="/aeonlabs-wordmark.png"]').count() == 2
         health = page.request.get(args.url + "/api/status").json()
         assert not health["image_ready"], "Test refuses live image credentials"
         page.locator("#image-file").set_input_files(fixture)
         page.wait_for_function("document.getElementById('image-size').textContent === '640 × 480'")
         page.locator("form details summary").click()
         page.locator("#manual-mask").check()
+        page.locator("#input-preview").scroll_into_view_if_needed()
         bounds = page.locator("#input-preview").bounding_box()
         page.mouse.move(bounds["x"] + 50, bounds["y"] + 50)
         page.mouse.down()
@@ -42,8 +47,19 @@ def main():
         page.locator("#instruction").fill("Lift the cup with the right hand.")
         page.locator("#hfov").fill("70")
         page.locator("#pitch").fill("0")
+        painted = page.locator("#input-preview").evaluate("(canvas) => canvas.toDataURL()")
+        page.locator("#language-toggle").click()
+        assert page.locator("html").get_attribute("lang") == "zh-CN"
+        assert page.locator("#choose-image").inner_text() == "上传图片"
+        assert page.locator("#instruction").input_value() == "Lift the cup with the right hand."
+        assert page.locator("#input-preview").evaluate("(canvas) => canvas.toDataURL()") == painted
+        assert page.locator("#manual-mask").is_checked()
         page.locator("#generate").click()
         page.wait_for_function("document.getElementById('form-error').textContent.includes('GEMINI_API_KEY')")
+        page.locator("#language-toggle").click()
+        assert "Image editing is not configured" in page.locator("#form-error").inner_text()
+        assert "Image editing / automatic masking" in page.locator("#health-detail").inner_text()
+        page.locator("#language-toggle").click()
         page.locator("#open-camera").click()
         page.wait_for_function("document.getElementById('camera').videoWidth > 0")
         page.locator("#capture").click()
@@ -64,11 +80,26 @@ def main():
         download.value.save_as(args.out / "downloaded_robot_actions.npz")
         page.reload()
         page.wait_for_function("!document.getElementById('trajectory').hidden")
+        assert page.locator("html").get_attribute("lang") == "zh-CN"
         page.evaluate("window.scrollTo(0, 0)")
+        page.screenshot(path=str(args.out / "desktop-zh.png"), full_page=True)
+        if video.is_visible():
+            video.evaluate("(v) => { v.pause(); v.currentTime = 1.25; }")
+            page.wait_for_function("!document.getElementById('output-video').seeking")
+        page.locator("#language-toggle").click()
+        assert page.locator("#job-status").inner_text() == "Completed"
+        assert page.get_by_role("link", name="Robot NPZ", exact=True).is_visible()
+        if video.is_visible():
+            assert abs(video.evaluate("(v) => v.currentTime") - 1.25) < .05
         page.screenshot(path=str(args.out / "desktop.png"), full_page=True)
+        page.reload()
+        page.wait_for_function("!document.getElementById('trajectory').hidden")
+        assert page.locator("html").get_attribute("lang") == "en"
         page.set_viewport_size({"width":390,"height":844})
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         page.screenshot(path=str(args.out / "mobile.png"), full_page=True)
+        page.locator("#language-toggle").click()
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         assert not errors, errors
         (args.out / "checks.json").write_text(json.dumps({
             "browser": "Chromium", "javascript_errors": errors,
@@ -76,6 +107,11 @@ def main():
                        "camera capture with browser test device", "imported-result provenance",
                        "4-second video metadata", "hand trajectory plot", "NPZ download",
                        "result restored after reload", "mobile no horizontal overflow"],
+            "localization": ["English default", "original Aeon logo loaded in both locations",
+                             "language toggle preserves uploaded image, mask and instruction",
+                             "service and error translations", "result and download translations",
+                             "language persists after reload", "video position survives toggle",
+                             "mobile layout in both languages"],
             "live_image_generation_tested": False, "live_h3_generation_tested": False,
         }, indent=2))
         browser.close()

@@ -48,6 +48,8 @@ def test_upload_and_origin_limits(config):
         assert client.get("/").status_code == 200
         assert "From observation to action" in client.get("/").text
         assert client.get("/app.js").status_code == 200
+        assert client.get("/i18n.js").status_code == 200
+        assert client.get("/aeonlabs-wordmark.png").headers["content-type"] == "image/png"
         assert client.get("/", headers={"Host": "untrusted.example"}).status_code == 400
         assert client.post("/api/jobs", json=payload()).status_code == 403
         request = payload()

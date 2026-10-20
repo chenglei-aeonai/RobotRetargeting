@@ -3,10 +3,10 @@ const $ = id => document.getElementById(id);
 let inputImage = null, inputB64 = null, editedB64 = null, currentJob = null;
 let pollTimer = null, stream = null, trajectory = null, drawing = false, previous = null;
 const mask = document.createElement("canvas");
-const statusNames = {queued:"排队中", running:"运行中", completed:"已完成", failed:"失败", interrupted:"已中断"};
+let lastHealth = null, lastJob = null, lastJobs = [], formError = "", jobError = "";
 const stages = ["mask", "edit", "uplift", "generate", "retarget"];
 
-function error(message) { $("form-error").textContent = message; $("form-error").hidden = !message; }
+function error(message) { formError = message; $("form-error").textContent = localize(message); $("form-error").hidden = !message; }
 async function api(path, options = {}) {
   const response = await fetch(path, options);
   const data = await response.json();
@@ -17,12 +17,12 @@ function imageFromURL(url) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("无法读取图片"));
+    image.onerror = () => reject(new Error(t("readImageError")));
     image.src = url;
   });
 }
 async function fileImage(file) {
-  if (!file || file.size > 16*1024*1024) throw new Error("请选择小于 16 MiB 的图片");
+  if (!file || file.size > 16*1024*1024) throw new Error(t("imageSizeError"));
   const url = URL.createObjectURL(file);
   try { return await imageFromURL(url); } finally { URL.revokeObjectURL(url); }
 }
@@ -30,7 +30,7 @@ function encodeImage(image) {
   const canvas = document.createElement("canvas");
   canvas.width = image.naturalWidth || image.width;
   canvas.height = image.naturalHeight || image.height;
-  if (canvas.width * canvas.height > 16000000) throw new Error("图片不能超过 16 MP");
+  if (canvas.width * canvas.height > 16000000) throw new Error(t("megapixelError"));
   canvas.getContext("2d").drawImage(image, 0, 0);
   return canvas.toDataURL("image/png").split(",")[1];
 }
@@ -41,6 +41,7 @@ async function setInput(image) {
   $("input-preview").hidden = false; $("upload-prompt").hidden = true;
   $("image-size").textContent = `${mask.width} × ${mask.height}`;
   $("mask-file").value = ""; $("edited-file").value = ""; editedB64 = null;
+  renderFileLabels();
   drawInput(); error("");
 }
 function drawInput() {
@@ -79,9 +80,9 @@ $("dropzone").ondrop = async event => {
 };
 $("mask-file").onchange = async event => {
   try {
-    if (!inputImage) throw new Error("请先上传机器人图片");
+    if (!inputImage) throw new Error(t("uploadFirst"));
     const image = await fileImage(event.target.files[0]);
-    if (image.naturalWidth !== mask.width || image.naturalHeight !== mask.height) throw new Error("mask 尺寸必须与原图相同");
+    if (image.naturalWidth !== mask.width || image.naturalHeight !== mask.height) throw new Error(t("maskSizeError"));
     const ctx = mask.getContext("2d");ctx.clearRect(0,0,mask.width,mask.height);ctx.drawImage(image,0,0);
     const data = ctx.getImageData(0,0,mask.width,mask.height);
     for(let i=0;i<data.data.length;i+=4){const v=data.data[i]>=128;data.data[i]=data.data[i+1]=data.data[i+2]=255;data.data[i+3]=v?255:0;}
@@ -92,17 +93,17 @@ $("edited-file").onchange = async event => {
   editedB64 = null;
   if (!event.target.files.length) return;
   try {
-    if (!inputImage) throw new Error("请先上传机器人图片");
+    if (!inputImage) throw new Error(t("uploadFirst"));
     const image = await fileImage(event.target.files[0]);
-    if(image.naturalWidth!==mask.width || image.naturalHeight!==mask.height) throw new Error("编辑图尺寸必须与原图相同");
+    if(image.naturalWidth!==mask.width || image.naturalHeight!==mask.height) throw new Error(t("editSizeError"));
     editedB64=encodeImage(image);error("");
-  } catch(e){event.target.value="";error(e.message);}
+  } catch(e){event.target.value="";renderFileLabels();error(e.message);}
 };
 function stopCamera() {if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$("camera-area").hidden=true;}
 $("open-camera").onclick = async () => {
   try {
     stopCamera();
-    if (!navigator.mediaDevices) throw new Error("相机需要 localhost 或 HTTPS；请通过 SSH 隧道访问本页");
+    if (!navigator.mediaDevices) throw new Error(t("cameraError"));
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
     $("camera").srcObject=stream;$("camera-area").hidden=false;
   } catch(e){error(e.message);}
@@ -123,13 +124,13 @@ function encodeMask(){
   const ctx=canvas.getContext("2d");ctx.fillStyle="black";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(mask,0,0);
   const data=ctx.getImageData(0,0,canvas.width,canvas.height);let edited=0;
   for(let i=0;i<data.data.length;i+=4){const v=data.data[i]>=128?255:0;edited+=v>0;data.data[i]=data.data[i+1]=data.data[i+2]=v;data.data[i+3]=255;}
-  if(!edited || edited===canvas.width*canvas.height)throw new Error("请涂抹机械手区域，并保留未编辑区域");
+  if(!edited || edited===canvas.width*canvas.height)throw new Error(t("paintError"));
   ctx.putImageData(data,0,0);return canvas.toDataURL("image/png").split(",")[1];
 }
 $("generate-form").onsubmit=async event=>{
   event.preventDefault();error("");$("generate").disabled=true;
   try {
-    if(!inputB64)throw new Error("请先上传或拍摄机器人图片");
+    if(!inputB64)throw new Error(t("inputError"));
     const camera=await jsonFile("camera-transform");
     const request={image_b64:inputB64,instruction:$("instruction").value,hfov:Number($("hfov").value),
       seed:Number($("seed").value),fixed_camera_pitch:camera?null:Number($("pitch").value),
@@ -141,16 +142,24 @@ $("generate-form").onsubmit=async event=>{
   }catch(e){error(e.message);}finally{$("generate").disabled=false;}
 };
 async function health(){
-  $("health").textContent="● 正在检查服务";
+  lastHealth=null;$("health").textContent=t("checking");
   try{
-    const s=await api("/api/status");$("health").className=`pill ${s.ready?"ready":"offline"}`;
-    $("health").textContent=s.ready?"● 服务已就绪":"● 服务尚未就绪";
-    $("health-detail").textContent=s.errors.join("\n");$("health-detail").hidden=s.ready;
-  }catch(e){$("health").textContent="● 无法连接后端";$("health-detail").textContent=e.message;$("health-detail").hidden=false;}
+    lastHealth=await api("/api/status");
+  }catch(e){lastHealth={connectionError:e.message};}
+  renderHealth();
+}
+function renderHealth(){
+  if(!lastHealth){$("health").textContent=t("checking");return;}
+  const s=lastHealth;$("health").className=`pill ${s.ready?"ready":"offline"}`;
+  $("health").textContent=t(s.connectionError?"unreachable":s.ready?"ready":"notReady");
+  const issues=s.connectionError?[localize(s.connectionError)]:[
+    !s.image_ready&&t("imageUnavailable"),!s.uplift_ready&&t("upliftUnavailable"),
+    !s.h3_ready&&t("h3Unavailable")].filter(Boolean);
+  $("health-detail").textContent=issues.join("\n");$("health-detail").hidden=s.ready===true;
 }
 $("health").onclick=health;
 function resetResult(){
-  trajectory=null;$("result").hidden=false;$("empty-state").hidden=true;
+  trajectory=null;lastJob=null;jobError="";$("result").hidden=false;$("empty-state").hidden=true;
   for(const id of ["edited-image","output-video","trajectory","execution-note","mask-result"])$(id).hidden=true;
   $("output-video").pause();$("output-video").removeAttribute("src");$("output-video").load();
   $("edit-pending").hidden=false;$("metrics").replaceChildren();$("downloads").replaceChildren();$("job-error").hidden=true;
@@ -166,31 +175,36 @@ async function poll(id){
     renderJob(job);
     if(["queued","running"].includes(job.status))pollTimer=setTimeout(()=>poll(id),1800);
     else await history();
-  }catch(e){if(currentJob===id){$("job-error").textContent=e.message;$("job-error").hidden=false;}}
+  }catch(e){if(currentJob===id){jobError=e.message;$("job-error").textContent=localize(jobError);$("job-error").hidden=false;}}
 }
 function metric(label,value){const div=document.createElement("div");div.className="metric";const title=document.createElement("small");title.textContent=label;div.append(title,document.createTextNode(value));$("metrics").append(div);}
 function renderJob(job){
-  $("job-status").textContent=statusNames[job.status]||job.status;$("job-instruction").textContent=job.instruction;
+  lastJob=job;jobError=job.error||"";renderJobText(job);
   $("source-image").closest(".previews").hidden=!job.input_url;
   if(job.input_url)$("source-image").src=job.input_url;
   $("import-notice").hidden=job.mode!=="imported_result";
   $("steps").hidden=job.mode==="imported_result";
   const active=stages.indexOf(job.progress?.stage);
   document.querySelectorAll("#steps li").forEach((el,i)=>{el.className=job.status==="completed"||i<active?"done":i===active?"active":"";});
-  $("job-error").textContent=job.error||"";$("job-error").hidden=!job.error;
   const files=job.artifacts||{};
   if(files["edited.png"]){$("edited-image").src=files["edited.png"];$("edited-image").hidden=false;$("edit-pending").hidden=true;}
   if(files["edit_mask.png"]){$("mask-image").src=files["edit_mask.png"];$("mask-result").hidden=false;}
   if(job.status!=="completed")return;
   if(files["video.mp4"]){$("output-video").src=files["video.mp4"];$("output-video").hidden=false;}
-  $("metrics").replaceChildren();metric("轨迹时长","4.00 s");metric("关节采样",`${job.metrics?.exports?.samples??"—"} × 26`);
-  if(job.metrics?.mean_fingertip_error_m!=null)metric("求解器指尖误差",`${(job.metrics.mean_fingertip_error_m*1000).toFixed(2)} mm`);
-  metric("空间对齐",job.metrics?.placement_mode==="calibrated"?"已提供标定":"初始手位 · 实验");
-  $("downloads").replaceChildren();
-  const labels={"bundle.zip":"下载全部结果 ↓","robot_actions.npz":"机器人 NPZ","robot_actions.csv":"CSV","trajectory.json":"轨迹 JSON","controller_commands.json":"控制器消息","manifest.json":"运行记录"};
-  for(const [name,label]of Object.entries(labels)){if(files[name]){const a=document.createElement("a");a.href=files[name];a.download=name;a.textContent=label;$("downloads").append(a);}}
   $("execution-note").hidden=false;
   if(files["trajectory.json"]){const id=job.id;api(files["trajectory.json"]).then(data=>{if(currentJob===id){trajectory=data;$("trajectory").hidden=false;drawChart();}}).catch(e=>error(e.message));}
+}
+function renderJobText(job){
+  $("job-status").textContent=t(job.status);$("job-instruction").textContent=job.instruction;
+  $("job-error").textContent=localize(jobError);$("job-error").hidden=!jobError;
+  if(job.status!=="completed")return;
+  const files=job.artifacts||{};
+  $("metrics").replaceChildren();metric(t("durationMetric"),`${(job.metrics?.duration_seconds??4).toFixed(2)} s`);metric(t("samplesMetric"),`${job.metrics?.exports?.samples??"—"} × 26`);
+  if(job.metrics?.mean_fingertip_error_m!=null)metric(t("errorMetric"),`${(job.metrics.mean_fingertip_error_m*1000).toFixed(2)} mm`);
+  metric(t("alignmentMetric"),t(job.metrics?.placement_mode==="calibrated"?"calibrated":"experimental"));
+  $("downloads").replaceChildren();
+  const labels={"bundle.zip":"downloadAll","robot_actions.npz":"downloadNPZ","robot_actions.csv":"downloadCSV","trajectory.json":"downloadTrajectory","controller_commands.json":"downloadCommands","manifest.json":"downloadManifest"};
+  for(const [name,label]of Object.entries(labels)){if(files[name]){const a=document.createElement("a");a.href=files[name];a.download=name;a.textContent=t(label);$("downloads").append(a);}}
 }
 function drawChart(){
   if(!trajectory)return;
@@ -206,14 +220,22 @@ function drawChart(){
 $("joint-group").onchange=drawChart;
 async function history(){
   try{
-    const jobs=await api("/api/jobs");$("history-list").replaceChildren();
-    if(!jobs.length){const p=document.createElement("p");p.className="muted";p.textContent="还没有任务。";$("history-list").append(p);}
-    for(const job of jobs){const b=document.createElement("button");b.className="history-item";b.type="button";
-      const prompt=document.createElement("span");prompt.className="prompt";prompt.textContent=job.instruction;
-      const date=document.createElement("small");date.textContent=new Date(job.created_at*1000).toLocaleString();
-      const status=document.createElement("span");status.textContent=statusNames[job.status]||job.status;b.append(prompt,date,status);b.onclick=()=>selectJob(job.id);$("history-list").append(b);}
+    lastJobs=await api("/api/jobs");renderHistory();
   }catch(e){error(e.message);}
 }
+function renderHistory(){
+    $("history-list").replaceChildren();
+    if(!lastJobs.length){const p=document.createElement("p");p.className="muted";p.textContent=t("noJobs");$("history-list").append(p);}
+    for(const job of lastJobs){const b=document.createElement("button");b.className="history-item";b.type="button";
+      const prompt=document.createElement("span");prompt.className="prompt";prompt.textContent=job.instruction;
+      const date=document.createElement("small");date.textContent=new Date(job.created_at*1000).toLocaleString(language==="zh"?"zh-CN":"en-GB");
+      const status=document.createElement("span");status.textContent=t(job.status);b.append(prompt,date,status);b.onclick=()=>selectJob(job.id);$("history-list").append(b);}
+}
+window.addEventListener("languagechange",()=>{
+  error(formError);renderHealth();renderHistory();
+  if(lastJob)renderJobText(lastJob);
+  else if(jobError)$("job-error").textContent=localize(jobError);
+});
 $("refresh-history").onclick=history;
 try{const saved=JSON.parse(localStorage.getItem("retarget-camera")||"{}");$("hfov").value=saved.hfov||"";$("pitch").value=saved.pitch||"";}catch{}
 health();history();

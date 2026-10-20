@@ -13,9 +13,14 @@ Chrome / submit_pipeline.py → POST /api/jobs
   → NPZ / CSV / trajectory JSON / controller messages / video
 ```
 
-The UI follows the existing Aeon inference page's warm background, gold accents,
-two-panel workspace and loopback/SSH access model. It does not modify the shared
-inference page or its services.
+The UI reuses the existing Aeon inference page's original
+`aeonlabs-wordmark.png`, Cormorant Garamond / DM Sans fonts, warm background,
+gold buttons, and loopback/SSH access model. It does not modify the shared
+inference page or its services. English is the default; the top-right
+中文 / English button switches interface language and remembers the selection.
+Switching preserves uploads, masks, form values, the selected result and video
+playback position. User instructions, filenames and raw technical diagnostics
+retain their original content.
 
 ## Start the independent page
 
