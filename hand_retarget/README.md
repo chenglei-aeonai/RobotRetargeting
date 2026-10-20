@@ -43,3 +43,6 @@ Every method is held to the DG5F's joint speed limit (π rad/s), so no joint jum
 The URDF, meshes, home pose and scene numbers are copied from simtoolreal_newton so replays line up with it.
 
 Run the tests with `env -u PYTHONPATH uv run pytest` (unset PYTHONPATH so a sourced ROS install does not load its pytest plugins).
+
+For H3 video/action inference and the `h3-retarget run` / `h3-retarget retarget`
+commands, see the [pipeline integration guide](../docs/h3_pipeline.md).
