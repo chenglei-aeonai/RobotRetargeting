@@ -88,6 +88,9 @@ version mismatch or a second application.
 
 ## Run
 
+For the independent upload/camera web UI, script client and controller exports,
+see [Robot Demonstration Studio](web_pipeline.md). Neither requires Codex.
+
 Install from the repository checkout (assets/URDFs are needed at runtime):
 
 ```bash
@@ -119,10 +122,11 @@ The adapter implements Google's documented
 [Gemini image editing REST contract](https://ai.google.dev/gemini-api/docs/generate-content/image-generation).
 The provider is replaceable; it is not the MiniMax video/action model.
 
-The edit mask is a required same-resolution binary image: white permits changes
+An explicit edit mask is a same-resolution binary image: white permits changes
 around the end effectors, black preserves decoded RGB pixels exactly. Include
-the intended human-hand silhouette in the mask. Automatic end-effector
-segmentation is not included. A prompt alone cannot guarantee an unchanged
+the intended human-hand silhouette in the mask. When omitted, the pipeline now
+requests a Gemini polygon proposal and rasterizes it; this automatic mask still
+needs quality validation on robot images. A prompt alone cannot guarantee an unchanged
 background; the compositor enforces it. The editor must preserve dimensions
 and spatial alignment. Image-edit API behavior and edit quality still need
 validation on a real robot photo.

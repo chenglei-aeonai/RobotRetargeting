@@ -1,5 +1,9 @@
 # hand-retarget
 
+The experimental [Robot Demonstration Studio](../docs/web_pipeline.md) adds an
+independent browser UI and script API for robot photo → human demonstration →
+UR5e/DG5F trajectory export, without a Codex runtime dependency.
+
 Retarget a human hand skeleton (from video) onto a UR5e + Tesollo DG5F and replay it kinematically in a browser viewer.
 Vocabulary is in [CONTEXT.md](CONTEXT.md); why the skeletons are never corrected is in
 [docs/adr/0001-trajectory-kept-as-predicted.md](docs/adr/0001-trajectory-kept-as-predicted.md).

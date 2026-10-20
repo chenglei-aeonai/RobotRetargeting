@@ -17,12 +17,15 @@ dependencies = [
     "httpx",
     "pillow",
     "imageio-ffmpeg",
+    "fastapi",
+    "uvicorn",
 ]
 
 [project.scripts]
 hand-retarget-view = "hand_retarget.viewer:main"
 hand-retarget-export = "hand_retarget.cli:export_main"
 h3-retarget = "hand_retarget.inference:main"
+h3-retarget-web = "hand_retarget.webapp:main"
 
 [build-system]
 requires = ["uv_build>=0.11.8,<0.12.0"]
@@ -32,6 +35,7 @@ build-backend = "uv_build"
 dev = [
     "pytest",
     "fastapi",
+    "pyzmq",
 ]
 
 # dex-retargeting needs torch, and CPU-only torch is enough for it.

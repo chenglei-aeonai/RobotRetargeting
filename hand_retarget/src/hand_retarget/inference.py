@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import subprocess
+import time
 from pathlib import Path
 
 import numpy as np
@@ -48,6 +49,8 @@ def postprocess(joints: Path, video: Path | None, out: Path, seconds: float,
                  K=data["K"], fps=demo.fps)
     write_world_csv(demo, out / "human_world_joints.csv")
     robot = retarget_actions(demo, out, method, robot_from_demo)
+    from .trajectory import export_trajectory
+    robot["exports"] = export_trajectory(out, robot)
     return {"human": metadata, "robot": robot, "video": str(out / "video.mp4") if video else None}
 
 
@@ -64,7 +67,8 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run", help="edit → uplift → H3 → retarget")
     run.add_argument("--image", type=Path, required=True)
-    run.add_argument("--mask", type=Path, required=True, help="white=end effectors, black=unchanged")
+    run.add_argument("--mask", type=Path, help="white=end effectors; omitted: propose automatically")
+    run.add_argument("--segmentation-model", default="gemini-2.5-flash")
     run.add_argument("--edited-image", type=Path, help="use an existing edited image instead of Gemini")
     run.add_argument("--image-model", default="gemini-2.5-flash-image")
     run.add_argument("--instruction", required=True)
@@ -98,6 +102,10 @@ def main():
     report = {"status": "running", "command": args.command,
               "camera_assumption": "fixed" if args.fixed_camera_pitch is not None else "provided_transforms"}
     manifest = args.out / "manifest.json"
+    def stage(name):
+        temp = args.out / "progress.json.tmp"
+        temp.write_text(json.dumps({"stage": name, "updated_at": time.time()}))
+        temp.replace(args.out / "progress.json")
     try:
         if args.command == "run":
             from .inference_clients import H3Client, replace_hands
@@ -105,20 +113,33 @@ def main():
                 raise ValueError("non-empty instruction and HFOV 20–160 are required")
             client = H3Client(args.h3_url, args.profile)
             try:
+                stage("preflight")
                 report["engine_health"] = client.preflight()
                 report["instruction"] = args.instruction
                 report["input_sha256"] = sha256(args.image)
+                if args.mask is None:
+                    from .segmentation import segment_hands
+                    stage("mask")
+                    args.mask = args.out / "edit_mask.png"
+                    report["segmentation"] = segment_hands(
+                        args.image, args.mask, model=args.segmentation_model)
+                else:
+                    import shutil
+                    shutil.copyfile(args.mask, args.out / "edit_mask.png")
                 report["edit_mask_sha256"] = sha256(args.mask)
                 edited = args.out / "edited.png"
+                stage("edit")
                 report["edit"] = replace_hands(args.image, args.mask, edited,
                                                model=args.image_model, edited_image=args.edited_image)
                 bundle = args.out / "first_frame.npz"
+                stage("uplift")
                 with (args.out / "uplift.log").open("w") as log:
                     subprocess.run([str(args.uplift_python.resolve()), str(args.uplift_script.resolve()),
                                     "--image", str(edited), "--out", str(bundle),
                                     "--hfov", str(args.hfov)], stdout=log, stderr=subprocess.STDOUT,
                                    check=True, timeout=900)
                 report["first_frame"] = client.register(bundle)
+                stage("generate")
                 report["generation"] = client.generate(report["first_frame"]["clip_id"],
                                                         args.instruction, args.seed, args.out)
             finally:
@@ -127,10 +148,13 @@ def main():
         else:
             joints, video = args.joints, args.video
         report["source_joints_sha256"] = sha256(joints)
+        stage("retarget")
         report.update(postprocess(joints, video, args.out, args.seconds, transform, args.method, placement))
         report["status"] = "completed"
+        stage("completed")
     except Exception as error:
         report.update(status="failed", error=f"{type(error).__name__}: {error}")
+        stage("failed")
         raise
     finally:
         manifest.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
