@@ -269,3 +269,38 @@ def test_install_patch_applies_exactly_once(tmp_path):
     assert 'conditioning_items(self, cid, conditions[0].prompt)' in patched
     with pytest.raises(ValueError, match="mismatch/already patched"):
         module.patched_source(patched)
+
+
+@pytest.mark.parametrize("failed_job", [False, True])
+def test_gpu_smoke_client_records_success_or_failure(prediction, tmp_path, monkeypatch, failed_job):
+    spec = importlib.util.spec_from_file_location("gpu_smoke_test", ROOT / "integrations/h3/smoke_client.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    bundle = tmp_path / "frame.npz"
+    bundle.write_bytes(bundle_bytes(prediction[1], prediction[2]))
+    out = tmp_path / "gpu-result"
+    monkeypatch.setattr(sys, "argv", ["smoke_client.py", "--bundle", str(bundle), "--out", str(out)])
+    def request(url, data=None):
+        if url.endswith("/health"):
+            return {"ready": True, "checkpoint_profile": module.PROFILE,
+                    "robot_custom_frames_v1": True, "exact_cfg_parallel": True}
+        if url.endswith("/robot-frames"):
+            assert data["bundle_b64"]
+            return {"clip_id": "robot::test", "checkpoint_sha256": module.CHECKPOINT_SHA256}
+        if url.endswith("/videos"):
+            assert data["dataset"] == "robot_uploads" and data["hand_shift"] == 36
+            return {"id": "real-queue-contract"}
+        return {"status": "failed", "error": "GPU fault"} if failed_job else {"status": "completed"}
+    monkeypatch.setattr(module, "request", request)
+    monkeypatch.setattr(module.urllib.request, "urlopen",
+                        lambda url, **kw: io.BytesIO(prediction[0].read_bytes()
+                                                    if url.endswith("/joints") else b"video"))
+    if failed_job:
+        with pytest.raises(RuntimeError, match="GPU fault"):
+            module.main()
+    else:
+        module.main()
+    report = json.loads((out / "smoke_report.json").read_text())
+    assert report["status"] == ("failed" if failed_job else "completed")
+    assert report["new_gpu_generation"] is not failed_job
+    assert (out / "submission.json").exists()

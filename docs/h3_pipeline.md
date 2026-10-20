@@ -187,3 +187,43 @@ joint and speed bounds, coordinate transforms, missing hands, mask compositing,
 HTTP queue/artifact contracts, checkpoint admission, and the real H3 decoder
 and conditioning builder when `H3_TEST_RUNTIME` is set. They do not constitute
 a real GPU image→video inference run.
+
+## October 20 execution attempt
+
+The experimental runtime is now actually staged and patched at
+`/capstor/store/cscs/2go/go091/aeon-webui/h3-retarget-pipeline-20261020/minimax-h3`.
+The source deployment is unchanged. `prepare_experiment.py` prepares this
+layout reproducibly, including a same-node GPU client and an automatically
+terminated service:
+
+```bash
+# From a Daint login environment with the go091-0 GPU allocation:
+sbatch /capstor/store/cscs/2go/go091/aeon-webui/h3-retarget-pipeline-20261020/smoke.sbatch
+```
+
+This requests one four-GPU node for at most45 minutes, starts the patched
+step12983 service on loopback port30121, submits one full50-step generation,
+downloads its video and joints, and stops the service when the client finishes
+or fails. It uses the existing `mcd16` human-photo/WiLoR bundle, so image editing
+and new WiLoR estimation are deliberately outside this GPU smoke test.
+The client checks checkpoint identity,107frames/24fps, finite coordinates,
+camera intrinsics, and the exact initial right-hand anchor. Its HTTP control
+logic has CPU tests; a successful GPU result has not yet been obtained.
+
+The current session is on `eiger-ln002` (x86_64). Its Slurm controller exposes
+only `alps-eiger` with no GPU GRES. `sbatch --test-only` rejects the prepared job
+with `Invalid generic resource (gres) specification`; `sinfo -M daint` reports
+no such registered cluster. SSH to `wuche@daint-ln002` fails with
+`Permission denied (publickey)`. The saved runtime/WiLoR interpreters are
+aarch64 and fail locally with `Exec format error`. The previously recorded
+GPU inference endpoint also could not be reached. **GPU-environment access is
+the remaining execution blocker.** No GPU job was submitted.
+
+A separate actual-data regression completed locally: the saved human H3 output
+`20261014T201501Z_11ff4303` (profile `fast-align-hf15-human-trex-13500`, OakInk2)
+was decoded, cropped to4 seconds and retargeted into241 samples of6+20 joints.
+The mean solver fingertip error was4.94mm; maximum measured finger penetration
+was0. This is an existing step13500 output, not a new step12983 inference, and
+does not change the selected checkpoint. Fixed-camera pitch0 was an explicit
+test assumption, not real-scene calibration.
+Files are under `out/real-h3-human-13500-regression/`.
