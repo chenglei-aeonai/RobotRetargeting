@@ -151,9 +151,16 @@ start pose, synchronized dispatch and state/stop checks. Controller JSON is a
 payload bundle, not a live connection. The web worker does not execute hardware.
 
 Without `robot_from_demo`, trajectories align to the repository's home hand pose;
-this does not register the real table/object. Supplying calibration records that
-transform but does not prove reachability, collision avoidance or task success.
+this does not register the real table/object. With calibration, the uncentered
+demonstration coordinates are preserved: `robot_from_demo @ camera_to_demo[t]`
+maps an optical-camera point into robot world. Supplying that transform does
+not prove reachability, collision avoidance or task success.
 Solver fingertip error measures retargeting fit, not real-world task success.
+
+On graceful server shutdown, the worker kills its active local subprocess group
+and marks queued jobs interrupted without starting them. An already submitted
+remote H3 job may continue; its ID is saved in the result's `h3_submission.json`.
+Restarting the UI never automatically resubmits interrupted jobs.
 
 ## Verification and imported results
 

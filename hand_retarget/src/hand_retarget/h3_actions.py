@@ -38,7 +38,8 @@ def fixed_camera_transform(pitch_down_deg: float) -> np.ndarray:
     return result
 
 
-def load_h3_actions(path: Path, seconds: float, camera_to_demo: np.ndarray
+def load_h3_actions(path: Path, seconds: float, camera_to_demo: np.ndarray, *,
+                    center_origin: bool = True
                     ) -> tuple[HumanDemonstration, dict]:
     """Keep right hand (index 1); H3 and the retargeter use the same dpl/MANO order.
 
@@ -81,14 +82,19 @@ def load_h3_actions(path: Path, seconds: float, camera_to_demo: np.ndarray
         raise ValueError("right-hand palm frame is degenerate")
     skeletons = np.einsum("tij,tkj->tki", transforms[:, :3, :3], right) + transforms[:, None, :3, 3]
     origin = skeletons[0, 0].copy()
-    skeletons -= origin
+    # A calibrated demonstration frame has a meaningful absolute origin.
+    # Only home-pose experiments may discard the initial wrist translation.
+    removed_origin = origin if center_origin else np.zeros(3)
+    skeletons -= removed_origin
     demo = HumanDemonstration(path.stem, fps, skeletons,
-                              camera_position=transforms[0, :3, 3] - origin)
+                              camera_position=transforms[0, :3, 3] - removed_origin)
     return demo, {
         "source_frames": len(joints), "video_frames": count, "fps": fps,
         "duration_seconds": count / fps, "hand": "right", "hand_index": 1,
         "joint_order": "dpl_mano_21", "units": "metres", "K": K.tolist(),
         "origin_before_centering": origin.tolist(),
+        "origin_removed": removed_origin.tolist(),
+        "origin_centered": center_origin,
         "camera_to_demo": transforms.tolist(),
     }
 

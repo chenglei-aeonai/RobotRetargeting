@@ -87,6 +87,29 @@ def test_moving_camera_translation_is_preserved(prediction):
     np.testing.assert_allclose(moving.skeletons[-1, :, 1] - fixed.skeletons[-1, :, 1], 95/106*.1)
 
 
+def test_calibrated_postprocess_preserves_scene_origin(prediction, tmp_path, monkeypatch):
+    from hand_retarget import inference, trajectory
+    path, joints, _ = prediction
+    camera = fixed_camera_transform(20)
+    camera[:3, 3] = [.2, -.3, .8]
+    robot_from_demo = np.eye(4)
+    robot_from_demo[:3, 3] = [.1, .6, .55]
+    captured = {}
+    def retarget(demo, out, method, placement):
+        captured["world"] = demo.skeletons @ placement[:3, :3].T + placement[:3, 3]
+        captured["camera_position"] = demo.camera_position
+        return {}
+    monkeypatch.setattr(inference, "retarget_actions", retarget)
+    monkeypatch.setattr(trajectory, "export_trajectory", lambda *args: {})
+    result = inference.postprocess(path, None, tmp_path, 4, camera, "vector", robot_from_demo)
+    combined = robot_from_demo @ camera
+    expected = joints[:96, 1] @ combined[:3, :3].T + combined[:3, 3]
+    np.testing.assert_allclose(captured["world"], expected, atol=1e-12)
+    np.testing.assert_allclose(captured["camera_position"], camera[:3, 3])
+    assert result["human"]["origin_centered"] is False
+    assert result["human"]["origin_removed"] == [0, 0, 0]
+
+
 def test_actual_retargeter_exports_four_seconds(prediction, tmp_path):
     from hand_retarget.robot import HAND_LOWER, HAND_UPPER
     from hand_retarget.hand_optimizer import MAX_JOINT_SPEED

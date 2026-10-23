@@ -41,7 +41,8 @@ def trim_video(source: Path, destination: Path, frames: int, fps: float,
 def postprocess(joints: Path, video: Path | None, out: Path, seconds: float,
                 camera_to_demo: np.ndarray, method: str,
                 robot_from_demo: np.ndarray | None = None) -> dict:
-    demo, metadata = load_h3_actions(joints, seconds, camera_to_demo)
+    demo, metadata = load_h3_actions(joints, seconds, camera_to_demo,
+                                     center_origin=robot_from_demo is None)
     if video is not None:
         trim_video(video, out / "video.mp4", demo.num_frames, demo.fps, metadata["source_frames"])
     with np.load(joints, allow_pickle=False) as data:

@@ -154,14 +154,18 @@ reordering, guessed scaling, or per-frame wrist centering.
 
 Choose either an explicit fixed-camera pitch or `--camera-transforms` with an
 NPY `(4,4)` / `(T,4,4)` mapping each optical frame into a common z-up frame.
-All frames share the same initial-wrist origin. A moving head camera requires
+In home-pose mode all frames share the same initial-wrist origin. Calibrated
+mode preserves the absolute demonstration-frame coordinates. A moving head camera requires
 its extrinsics; one image cannot determine its future motion. Fixed-camera
 mode is an explicit experimental assumption.
 
 By default the repository places the first human palm at the robot home hand,
 then follows displacement. This is useful for kinematic experiments but does
 not register a real object/table. `--robot-from-demo` accepts a calibrated
-rigid `(4,4)` transform into the repository's robot world. Note the robot base
+rigid `(4,4)` transform from the uncentered demonstration frame into the
+repository's robot world. Thus a point is mapped as
+`robot_from_demo @ camera_to_demo[t] @ point_camera`, without subtracting the
+initial wrist. Note the robot base
 in this world is at `(0,0.6,0.55)`, not the origin.
 
 The selected checkpoint supports a single 107-frame window. Generate that

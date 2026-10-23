@@ -144,6 +144,8 @@ class Jobs:
         config.runs.mkdir(parents=True, exist_ok=True)
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="retarget")
         self.lock = threading.Lock()
+        self.stopping = threading.Event()
+        self.process = None
         self.pending = 0
         for status in config.runs.glob("*/status.json"):
             value = read_json(status)
@@ -181,25 +183,44 @@ class Jobs:
             state.update(status="running", started_at=time.time())
             write_json(job / "status.json", state)
             with (job / "pipeline.log").open("w") as log:
-                process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT,
-                                           start_new_session=True)
+                with self.lock:
+                    if self.stopping.is_set():
+                        raise RuntimeError("Server stopped; job was not resubmitted.")
+                    process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT,
+                                               start_new_session=True)
+                    self.process = process
                 try:
                     code = process.wait(timeout=3600)
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait()
                     raise TimeoutError("Pipeline exceeded one hour; remote H3 job may still exist.")
+            if self.stopping.is_set():
+                raise RuntimeError("Server stopped; remote H3 job may still exist.")
             report = read_json(job / "result/manifest.json")
             if code != 0 or report.get("status") != "completed":
                 raise RuntimeError(report.get("error", f"Pipeline exited with status {code}"))
             package_result(job / "result")
             state.update(status="completed", finished_at=time.time())
         except Exception as exc:
-            state.update(status="failed", error=str(exc), finished_at=time.time())
+            state.update(status="interrupted" if self.stopping.is_set() else "failed",
+                         error=str(exc), finished_at=time.time())
         finally:
             write_json(job / "status.json", state)
             with self.lock:
+                self.process = None
                 self.pending -= 1
+
+    def close(self):
+        """Stop local process groups and drain queued jobs without launching them."""
+        with self.lock:
+            self.stopping.set()
+            if self.process is not None:
+                try:
+                    os.killpg(self.process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        self.executor.shutdown(wait=True)
 
     def submit(self, request: JobInput) -> dict:
         if not request.instruction.strip():
@@ -218,6 +239,8 @@ class Jobs:
         if not all(Path(p).is_file() for p in (self.config.uplift_python, self.config.uplift_script)):
             raise ValueError("WiLoR interpreter and script must be configured on the server")
         with self.lock:
+            if self.stopping.is_set():
+                raise HTTPException(503, "Server is stopping")
             if self.pending >= 8:
                 raise HTTPException(429, "Queue full; wait for an existing job")
             self.pending += 1
@@ -255,7 +278,7 @@ def create_app(config: Config) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
         yield
-        jobs.executor.shutdown(wait=True)
+        jobs.close()
 
     app = FastAPI(title="Robot Demonstration Studio", lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])

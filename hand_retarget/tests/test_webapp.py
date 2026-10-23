@@ -186,6 +186,42 @@ def test_worker_failure_is_persistent(config, monkeypatch):
         assert not result["artifacts"]
 
 
+def test_shutdown_stops_process_group_and_does_not_launch_queued_jobs(config, tmp_path, monkeypatch):
+    from hand_retarget import webapp
+    started = tmp_path / "started"
+    descendant_output = tmp_path / "descendant-output"
+    queued_output = tmp_path / "queued-output"
+    # A child process would write a marker after the service has shut down if
+    # cancellation killed only the pipeline parent rather than its process group.
+    child = ("import time; from pathlib import Path; time.sleep(1); "
+             f"Path({str(descendant_output)!r}).touch()")
+    parent = ("import subprocess, sys, time; from pathlib import Path; "
+              f"subprocess.Popen([sys.executable, '-c', {child!r}]); "
+              f"Path({str(started)!r}).touch(); time.sleep(60)")
+    commands = iter([
+        [sys.executable, "-c", parent],
+        [sys.executable, "-c", f"from pathlib import Path; Path({str(queued_output)!r}).touch()"],
+    ])
+    monkeypatch.setattr(webapp, "build_command", lambda *_: next(commands))
+    app = create_app(config)
+    with TestClient(app) as client:
+        first = client.post("/api/jobs", json=payload(), headers=HEADERS).json()["id"]
+        second = client.post("/api/jobs", json=payload(), headers=HEADERS).json()["id"]
+        deadline = time.monotonic() + 5
+        while not started.exists() and time.monotonic() < deadline:
+            time.sleep(.01)
+        assert started.exists()
+        begin = time.monotonic()
+    assert time.monotonic() - begin < 5
+    time.sleep(1.1)
+    assert not descendant_output.exists()
+    assert not queued_output.exists()
+    for job_id in (first, second):
+        state = json.loads((config.runs / job_id / "status.json").read_text())
+        assert state["status"] == "interrupted"
+    assert app.state.jobs.pending == 0
+
+
 @pytest.mark.parametrize("bad", ["bounds", "speed", "time", "nan"])
 def test_controller_export_rejects_invalid_trajectories(tmp_path, bad):
     from hand_retarget.trajectory import export_trajectory
